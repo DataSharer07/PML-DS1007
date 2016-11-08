@@ -1,0 +1,74 @@
+---
+title: "PML Project"
+author: "Datasharer07"
+date: "11/6/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Practical Machine Learning Project
+
+#Loading and Cleaning data
+
+Loading of packages and data
+```{r Load}
+library(caret)
+library(rpart)
+library(randomForest)
+library(ranger)
+
+
+train<-read.csv("pml-training.csv", na.strings = c("NA", ""))
+test<-read.csv("pml-testing.csv", na.strings = c("NA", ""))
+```
+
+Cleaning data includes cutting first seven unnecessary columns and excluding columns with many NAs.
+```{r DataCleaning}
+#remove unnecessary first 7 columns
+train <- train[, -c(1:7)]
+
+#remove columns with a lot of NA entries
+train<-train[ , colSums(is.na(train)) <= 15000]
+#quizz<-test[which(names(test) %in% names(train))] #Deletes all columns not in the training set
+set.seed(1007)
+```
+
+
+# Model Building
+I used data splitting to create a training and testing set.
+```{r Slicing}
+inTrain<-createDataPartition(y=train$classe,p=0.75,list=FALSE)
+training<-train[inTrain,]
+testing<-train[-inTrain,]
+```
+
+I tested two machine learning techniques: trees and random forests with the Ranger package.
+```{r Learn}
+#The Do parallel package lets your computer use multiple processors and thus is faster
+library(doParallel)
+cluster <- makeCluster(detectCores() - 1)
+registerDoParallel(cluster)
+#getDoParWorkers() If you want to test number of cores used
+RandForestFit<-ranger(classe~.,data=training,write.forest = TRUE) #Ranger is a faster random forest
+TreeFit<-train(classe~.,method="rpart",data=training)
+stopCluster(cluster)
+```
+
+
+#Cross Validation
+```{r Test}
+testRandForestFit<-predict(RandForestFit,dat=testing)
+testTreeFit<-predict(TreeFit,newdata=testing)
+```
+```{r Confusion}
+AccRandForestFit<- confusionMatrix(testRandForestFit$predictions,testing$classe)
+AccTreeFit<- confusionMatrix(testTreeFit,testing$classe)
+```
+#Expected out of sample error
+The expected out of sample error for the two methods are:
+
+- Random Forrest: `r 1-AccRandForestFit$overall[1]`
+- Tree: `r 1-AccTreeFit$overall[1]`
